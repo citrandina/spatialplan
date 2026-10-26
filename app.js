@@ -37,6 +37,12 @@
     ],
     overlayNoValue: /^(tidak ada|-|)$/i,
 
+    // Popup on a zoning polygon: technical columns of the original RTRW file are hidden here
+    // (matched case-insensitively). Everything else with a real value is shown.
+    popupHide: ["objectid", "orde01", "orde02", "orde03", "orde04", "jnsrpr", "wadmpr", "wadmkk",
+                "shape_length", "shape_area", "kodkws", "namobj"],
+    popupLabels: { wadmkc: "District", remark: "Remark", luasha: "Area in data (ha)" },
+
     // Rough extent [minLon, minLat, maxLon, maxLat], only used to warn about swapped X/Y or wrong CRS.
     extent: [140.3, -3.0, 141.3, -2.2],
 
@@ -104,6 +110,34 @@
       if (k && props[k] != null && String(props[k]).trim() !== "") return String(props[k]).trim();
     }
     return "";
+  }
+
+  /* the original file has non-breaking spaces / double spaces in text values; normalise them */
+  function tidyProps(props) {
+    const out = {};
+    Object.keys(props || {}).forEach((k) => {
+      const v = props[k];
+      out[k] = typeof v === "string" ? v.replace(/[\s ]+/g, " ").trim() : v;
+    });
+    return out;
+  }
+
+  /* rows for the zone popup: hides technical columns, uses readable labels */
+  function popupRows(props) {
+    const hide = CONFIG.popupHide.map((s) => s.toLowerCase());
+    const labels = {};
+    CONFIG.overlays.forEach((o) => { labels[o.field.toLowerCase()] = o.label; });
+    Object.keys(CONFIG.popupLabels).forEach((k) => { labels[k.toLowerCase()] = CONFIG.popupLabels[k]; });
+    return Object.keys(props || {}).filter((k) => {
+      const v = props[k];
+      return hide.indexOf(k.toLowerCase()) < 0 && v != null && String(v) !== "" &&
+        !CONFIG.overlayNoValue.test(String(v));
+    }).map((k) => {
+      const lk = k.toLowerCase();
+      let v = props[k];
+      if (lk === "luasha" && isFinite(v)) v = fmt(v, 2);
+      return "<tr><td>" + esc(labels[lk] || k) + "</td><td>" + esc(v) + "</td></tr>";
+    }).join("");
   }
 
   /* overlay attributes that apply to a zone polygon: [{label, value}] */
@@ -276,7 +310,7 @@
       if (!f || !f.geometry) return;
       const g = cleanPolygonGeometry(f.geometry);
       if (!g) return;
-      const feature = { type: "Feature", properties: f.properties || {}, geometry: g };
+      const feature = { type: "Feature", properties: tidyProps(f.properties), geometry: g };
       const code = getProp(feature.properties, CONFIG.codeFields);
       const name = getProp(feature.properties, CONFIG.nameFields) || code || "Unnamed zone";
       const z = {
@@ -303,10 +337,7 @@
         if (!z) return;
         // popup content is built only when clicked (keeps loading fast)
         layer.bindPopup(() => {
-          const rows = Object.keys(f.properties || {})
-            .filter((k) => f.properties[k] != null && String(f.properties[k]) !== "" &&
-              !CONFIG.overlayNoValue.test(String(f.properties[k])))
-            .map((k) => "<tr><td>" + esc(k) + "</td><td>" + esc(f.properties[k]) + "</td></tr>").join("");
+          const rows = popupRows(f.properties);
           return '<div class="zone-popup"><strong>' + esc(z.name) + "</strong>" +
             (z.code ? "<br>Code: " + esc(z.code) : "") +
             (rows ? "<table>" + rows + "</table>" : "") + "</div>";
@@ -320,41 +351,62 @@
     }
   }
 
-  // let legendControl = null;
-  // function drawLegend() {
-  //   if (legendControl) map.removeControl(legendControl);
-  //   const seen = new Map();
-  //   zones.forEach((z) => { const k = z.code + "|" + z.name; if (!seen.has(k)) seen.set(k, z); });
-  //   const items = Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
-  //   legendControl = L.control({ position: "bottomright" });
-  //   legendControl.onAdd = function () {
-  //     // starts minimized; click the header to expand / collapse
-  //     const div = L.DomUtil.create("div", "legend collapsed");
-  //     div.innerHTML =
-  //       '<button type="button" class="legend-toggle" aria-expanded="false">' +
-  //       '<span>Zoning legend</span><span class="chev" aria-hidden="true">&#9650;</span></button>' +
-  //       '<div class="legend-body">' + items.map((z) =>
-  //         '<div><span class="sw" style="background:' + z.color + '"></span>' +
-  //         esc(z.name) + (z.code ? " (" + esc(z.code) + ")" : "") + "</div>").join("") + "</div>";
-  //     const toggle = div.querySelector(".legend-toggle");
-  //     toggle.addEventListener("click", () => {
-  //       const collapsed = div.classList.toggle("collapsed");
-  //       toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
-  //     });
-  //     L.DomEvent.disableClickPropagation(div);
-  //     L.DomEvent.disableScrollPropagation(div);
-  //     return div;
-  //   };
-  //   legendControl.addTo(map);
-  // }
+  let legendControl = null;
+  function drawLegend() {
+    if (legendControl) map.removeControl(legendControl);
+    const seen = new Map();
+    zones.forEach((z) => { const k = z.code + "|" + z.name; if (!seen.has(k)) seen.set(k, z); });
+    const items = Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = function () {
+      // starts minimized; click the header to expand / collapse
+      const div = L.DomUtil.create("div", "legend collapsed");
+      div.innerHTML =
+        '<button type="button" class="legend-toggle" aria-expanded="false">' +
+        '<span>Zoning legend</span><span class="chev" aria-hidden="true">&#9650;</span></button>' +
+        '<div class="legend-body">' + items.map((z) =>
+          '<div><span class="sw" style="background:' + z.color + '"></span>' +
+          esc(z.name) + (z.code ? " (" + esc(z.code) + ")" : "") + "</div>").join("") + "</div>";
+      const toggle = div.querySelector(".legend-toggle");
+      toggle.addEventListener("click", () => {
+        const collapsed = div.classList.toggle("collapsed");
+        toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      });
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+      return div;
+    };
+    legendControl.addTo(map);
+  }
+
+  /* downloads the (large) zoning file and shows how much has arrived */
+  async function fetchTextWithProgress(url) {
+    const r = await fetch(url, { cache: "no-cache" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    if (!r.body || !r.body.getReader) return r.text();
+    const reader = r.body.getReader();
+    const chunks = [];
+    let got = 0;
+    for (;;) {
+      const res = await reader.read();
+      if (res.done) break;
+      chunks.push(res.value);
+      got += res.value.length;
+      setStatus("Loading zoning data… " + (got / 1048576).toFixed(1) + " MB");
+    }
+    return await new Blob(chunks).text();
+  }
+  const nextPaint = () => new Promise((res) => setTimeout(res, 30));
 
   async function loadZoning() {
     try {
-      const r = await fetch(CONFIG.dataUrl, { cache: "no-cache" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const gj = await r.json();
+      const gj = JSON.parse(await fetchTextWithProgress(CONFIG.dataUrl));
+      setStatus("Preparing zoning data…");
+      await nextPaint();
       const note = prepareZones(gj);
       if (!zones.length) throw new Error("no polygon features found");
+      setStatus("Drawing map…");
+      await nextPaint();
       drawZones();
       drawLegend();
       const types = new Set(zones.map((z) => z.code + "|" + z.name)).size;
