@@ -328,10 +328,20 @@
     const items = Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
     legendControl = L.control({ position: "bottomright" });
     legendControl.onAdd = function () {
-      const div = L.DomUtil.create("div", "legend");
-      div.innerHTML = "<h4>Zoning</h4>" + items.map((z) =>
-        '<div><span class="sw" style="background:' + z.color + '"></span>' +
-        esc(z.name) + (z.code ? " (" + esc(z.code) + ")" : "") + "</div>").join("");
+      // starts minimized; click the header to expand / collapse
+      const div = L.DomUtil.create("div", "legend collapsed");
+      div.innerHTML =
+        '<button type="button" class="legend-toggle" aria-expanded="false">' +
+        '<span>Zoning legend</span><span class="chev" aria-hidden="true">&#9650;</span></button>' +
+        '<div class="legend-body">' + items.map((z) =>
+          '<div><span class="sw" style="background:' + z.color + '"></span>' +
+          esc(z.name) + (z.code ? " (" + esc(z.code) + ")" : "") + "</div>").join("") + "</div>";
+      const toggle = div.querySelector(".legend-toggle");
+      toggle.addEventListener("click", () => {
+        const collapsed = div.classList.toggle("collapsed");
+        toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      });
+      L.DomEvent.disableClickPropagation(div);
       L.DomEvent.disableScrollPropagation(div);
       return div;
     };
