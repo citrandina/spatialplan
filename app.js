@@ -9,7 +9,7 @@
    * CONFIG  -  edit this block to match your own data
    * ===================================================================== */
   const CONFIG = {
-    dataUrl: "data/rtrw_kotajayaoura.geojson",              // zoning polygons (WGS84 / EPSG:4326)
+    dataUrl: "data/rtrw_kotajayapura.geojson",              // zoning polygons (WGS84 / EPSG:4326)
     center: [-2.55, 140.70],
     zoom: 12,
 
