@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spatial Plan Checker - Kota Jayapura</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <aside id="panel">
+      <header class="head">
+        <h1>Spatial Plan Checker</h1>
+        <p>Kota Jayapura &middot; see which zones a land parcel falls in</p>
+      </header>
+
+      <div id="dataStatus" class="status">Loading zoning data&hellip;</div>
+      <div id="msg" class="msg" role="status" aria-live="polite" hidden></div>
+
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="upload" type="button">Upload</button>
+        <button class="tab-btn" data-tab="coords" type="button">Coordinates</button>
+        <button class="tab-btn" data-tab="draw" type="button">Draw</button>
+      </nav>
+
+      <!-- ===== Upload ===== -->
+      <section id="tab-upload" class="tab active">
+        <label id="dropzone" class="dropzone" for="fileInput">
+          <strong>Choose a file</strong> or drop it here<br>
+          <span>GeoJSON, KML, or zipped Shapefile (.zip containing .shp .dbf .prj)</span>
+        </label>
+        <input id="fileInput" type="file" accept=".geojson,.json,.kml,.zip" hidden>
+
+        <label class="field">If the file uses meters (projected) and has no CRS information, treat it as:
+          <select id="uploadCrs">
+            <option value="utm54">WGS84 UTM zone 54S (EPSG:32754)</option>
+            <option value="utm53">WGS84 UTM zone 53S (EPSG:32753)</option>
+          </select>
+        </label>
+
+        <button id="sampleBtn" class="btn ghost" type="button">Try the sample parcel</button>
+      </section>
+
+      <!-- ===== Coordinates ===== -->
+      <section id="tab-coords" class="tab">
+        <label class="field">Coordinate system
+          <select id="coordMode">
+            <option value="lonlat">WGS84 &mdash; Longitude, Latitude</option>
+            <option value="latlon">WGS84 &mdash; Latitude, Longitude</option>
+            <option value="utm54">WGS84 UTM 54S &mdash; Easting, Northing</option>
+            <option value="utm53">WGS84 UTM 53S &mdash; Easting, Northing</option>
+          </select>
+        </label>
+
+        <table class="coords">
+          <thead>
+            <tr><th>#</th><th id="thX">Longitude</th><th id="thY">Latitude</th><th></th></tr>
+          </thead>
+          <tbody id="coordBody"></tbody>
+        </table>
+
+        <div class="row">
+          <button id="addRow" class="btn ghost" type="button">+ Add point</button>
+          <button id="clearRows" class="btn ghost" type="button">Clear table</button>
+        </div>
+
+        <details>
+          <summary>Paste many coordinates</summary>
+          <textarea id="pasteBox" rows="5" placeholder="140.7012, -2.5334&#10;140.7025, -2.5334&#10;140.7025, -2.5347&#10;140.7012, -2.5347"></textarea>
+          <button id="fillRows" class="btn ghost" type="button">Fill table</button>
+        </details>
+
+        <p class="hint">One point answers &ldquo;which zone is this?&rdquo;. Three or more points form a parcel polygon (closed automatically). Decimal commas such as 140,7012 are accepted.</p>
+        <button id="checkCoords" class="btn primary" type="button">Check spatial plan</button>
+      </section>
+
+      <!-- ===== Draw ===== -->
+      <section id="tab-draw" class="tab">
+        <p class="hint">Draw the parcel directly on the map. Click each corner, then click the first point to finish.</p>
+        <div class="row">
+          <button id="drawPoly" class="btn primary" type="button">Draw polygon</button>
+          <button id="drawPoint" class="btn ghost" type="button">Place point</button>
+        </div>
+        <p id="drawHint" class="hint" hidden>Drawing tool could not be loaded. Check your internet connection.</p>
+      </section>
+
+      <div class="row spaced">
+        <button id="clearAll" class="btn ghost" type="button">Clear parcel &amp; results</button>
+      </div>
+
+      <!-- ===== Results ===== -->
+      <section id="resultsWrap" hidden>
+        <div class="results-head">
+          <h2>Result</h2>
+          <div class="row">
+            <button id="exportCsv" class="btn small" type="button">CSV</button>
+            <button id="printBtn" class="btn small" type="button">Print / PDF</button>
+          </div>
+        </div>
+        <div id="results"></div>
+      </section>
+
+      <details class="layers">
+        <summary>Map layers</summary>
+        <label class="field">Basemap
+          <select id="basemap">
+            <option value="osm">OpenStreetMap</option>
+            <option value="sat">Satellite (Esri)</option>
+          </select>
+        </label>
+        <label class="field">Zoning opacity
+          <input id="opacity" type="range" min="0" max="1" step="0.05" value="0.5">
+        </label>
+      </details>
+
+      <footer class="foot">
+        <strong>Disclaimer:</strong> results are indicative only, computed from the zoning data loaded in this
+        page. They are not an official KKPR / KRK. Always confirm with the authorised agency (Dinas PUPR /
+        ATR-BPN) before making decisions.
+      </footer>
+    </aside>
+
+    <main id="map" aria-label="Map"></main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://unpkg.com/proj4@2.9.2/dist/proj4.js"></script>
+  <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

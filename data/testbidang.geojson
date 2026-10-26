@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "testbidang",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "Id": 0, "LUAS": "732,677415951551" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 140.641908128926644, -2.590708887884076 ], [ 140.641925839026584, -2.590534053209061 ], [ 140.642263065499179, -2.590568603268185 ], [ 140.642245355449205, -2.590743437927467 ], [ 140.641908128926644, -2.590708887884076 ] ] ] ] } }
+]
+}
