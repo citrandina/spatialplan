@@ -122,6 +122,8 @@ select:focus, input:focus, textarea:focus { outline: 2px solid #9fd3bd; border-c
   border: 1px solid var(--accent);
   cursor: pointer;
 }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .6; cursor: wait; }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent-dark); }
 .btn.ghost { background: #fff; color: var(--accent-dark); }

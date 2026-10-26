@@ -10,7 +10,6 @@
    * ===================================================================== */
   const CONFIG = {
     dataUrl: "data/zoning.geojson",              // zoning polygons (WGS84 / EPSG:4326)
-    sampleParcelUrl: "data/sample_parcel.geojson",
     center: [-2.55, 140.70],
     zoom: 12,
 
@@ -670,15 +669,57 @@
   ["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("over"); }));
   dz.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
 
-  $("#sampleBtn").addEventListener("click", async () => {
-    try {
-      const r = await fetch(CONFIG.sampleParcelUrl);
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const out = itemsFromGeoJSON(await r.json(), "Sample parcel");
-      applyItems(out.items, out.notes);
-    } catch (err) {
-      showMsg("Could not load the sample parcel: " + err.message, "error");
+  /* =====================================================================
+   * Input 0: current location (browser geolocation)
+   * ===================================================================== */
+  const locateBtn = $("#locateBtn");
+  locateBtn.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      showMsg("This browser does not support location. Use the Coordinates tab instead.", "error");
+      return;
     }
+    if (!window.isSecureContext) {
+      showMsg("Location only works on a secure (https) page. GitHub Pages is https; opening the file from disk is not.", "error");
+      return;
+    }
+    const label = locateBtn.innerHTML;
+    locateBtn.disabled = true;
+    locateBtn.textContent = "Getting your location…";
+    showMsg("Waiting for your device to share its location. Please allow the permission request.");
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locateBtn.disabled = false;
+        locateBtn.innerHTML = label;
+        const lon = pos.coords.longitude, lat = pos.coords.latitude, acc = pos.coords.accuracy || 0;
+        const built = buildItems([turf.point([lon, lat])], "My location");
+        built.items.forEach((it) => { it.name = "My current location"; });
+        const notes = [];
+        if (acc > 30) {
+          notes.push("Location accuracy is about ±" + Math.round(acc) + " m. Near a zone boundary the result may be " +
+            "wrong; for a precise answer use a GPS device or enter the parcel polygon.");
+        }
+        applyItems(built.items, notes);
+        if (acc > 0) {
+          const circle = L.circle([lat, lon], {
+            radius: acc, color: "#1565c0", weight: 1, fillColor: "#1565c0", fillOpacity: 0.12, interactive: false
+          }).addTo(parcelGroup);
+          const b = circle.getBounds();
+          if (b.isValid()) map.fitBounds(b.pad(0.6), { maxZoom: 18 });
+        }
+      },
+      (err) => {
+        locateBtn.disabled = false;
+        locateBtn.innerHTML = label;
+        const reasons = {
+          1: "Location permission was denied. Allow location for this site in your browser settings and try again.",
+          2: "Your device could not determine its location. Try again outdoors or enter coordinates manually.",
+          3: "Getting the location took too long. Try again."
+        };
+        showMsg(reasons[err.code] || ("Could not get your location: " + err.message), "error");
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
   });
 
   /* =====================================================================

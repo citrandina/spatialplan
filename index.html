@@ -21,6 +21,9 @@
       <div id="dataStatus" class="status">Loading zoning data&hellip;</div>
       <div id="msg" class="msg" role="status" aria-live="polite" hidden></div>
 
+      <button id="locateBtn" class="btn primary wide" type="button">&#128205; Use my current location</button>
+      <p class="hint">Checks the zone where you are standing now. Your location is used only in your browser and is not sent or stored anywhere. Or choose another input method below.</p>
+
       <nav class="tabs">
         <button class="tab-btn active" data-tab="upload" type="button">Upload</button>
         <button class="tab-btn" data-tab="coords" type="button">Coordinates</button>
@@ -41,8 +44,6 @@
             <option value="utm53">WGS84 UTM zone 53S (EPSG:32753)</option>
           </select>
         </label>
-
-        <button id="sampleBtn" class="btn ghost" type="button">Try the sample parcel</button>
       </section>
 
       <!-- ===== Coordinates ===== -->
